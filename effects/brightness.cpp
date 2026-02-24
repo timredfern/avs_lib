@@ -1,0 +1,327 @@
+// avs_lib - Portable Advanced Visualization Studio library
+// Based on Advanced Visualization Studio by Nullsoft, Inc.
+// AVS Copyright (C) 2005 Nullsoft, Inc.
+// C++20 port Copyright (C) 2025 Tim Redfern
+// Licensed under MIT License
+
+#include "brightness.h"
+#include "core/plugin_manager.h"
+#include "core/binary_reader.h"
+#include "core/blend.h"
+#include "core/color.h"
+#include <algorithm>
+#include <cmath>
+
+namespace avs {
+
+BrightnessEffect::BrightnessEffect() {
+    init_parameters_from_layout(effect_info.ui_layout);
+}
+
+// Helper: check if color is within distance of reference color
+static inline bool inRange(uint32_t c, uint32_t ref, int distance) {
+    int dr = std::abs((int)color::red(c) - (int)color::red(ref));
+    if (dr > distance) return false;
+    int dg = std::abs((int)color::green(c) - (int)color::green(ref));
+    if (dg > distance) return false;
+    int db = std::abs((int)color::blue(c) - (int)color::blue(ref));
+    if (db > distance) return false;
+    return true;
+}
+
+int BrightnessEffect::render(AudioData visdata, int isBeat,
+                            uint32_t* framebuffer, uint32_t* fbout,
+                            int w, int h) {
+    if (!is_enabled()) return 0;
+    if (isBeat & 0x80000000) return 0;
+
+    // Get slider values (0-8192) and convert to internal values (-4096 to 4096)
+    int redp = parameters().get_int("red_adjust") - 4096;
+    int greenp = parameters().get_int("green_adjust") - 4096;
+    int bluep = parameters().get_int("blue_adjust") - 4096;
+
+    // Calculate multipliers exactly as original:
+    // rm = (1 + (redp < 0 ? 1 : 16) * (redp/4096)) * 65536
+    int rm = (int)((1 + (redp < 0 ? 1 : 16) * ((float)redp / 4096)) * 65536.0);
+    int gm = (int)((1 + (greenp < 0 ? 1 : 16) * ((float)greenp / 4096)) * 65536.0);
+    int bm = (int)((1 + (bluep < 0 ? 1 : 16) * ((float)bluep / 4096)) * 65536.0);
+
+    // Build lookup tables for ARGB format using color.h constants
+    // Tables output in-place values (no shifts needed in inner loop)
+    using avs::color::RED_MAX_I;
+    using avs::color::GREEN_MAX_I;
+    using avs::color::BLUE_MAX_I;
+
+    int red_tab[256], green_tab[256], blue_tab[256];
+    for (int n = 0; n < 256; n++) {
+        // Red: bits 16-23, output range 0-RED_MAX_I
+        red_tab[n] = n * rm;
+        if (red_tab[n] > RED_MAX_I) red_tab[n] = RED_MAX_I;
+        if (red_tab[n] < 0) red_tab[n] = 0;
+        red_tab[n] &= RED_MAX_I;
+
+        // Green: bits 8-15, output range 0-GREEN_MAX_I
+        green_tab[n] = (n * gm) >> 8;
+        if (green_tab[n] > GREEN_MAX_I) green_tab[n] = GREEN_MAX_I;
+        if (green_tab[n] < 0) green_tab[n] = 0;
+        green_tab[n] &= GREEN_MAX_I;
+
+        // Blue: bits 0-7, output range 0-BLUE_MAX_I
+        blue_tab[n] = (n * bm) >> 16;
+        if (blue_tab[n] > BLUE_MAX_I) blue_tab[n] = BLUE_MAX_I;
+        if (blue_tab[n] < 0) blue_tab[n] = 0;
+    }
+
+    auto blend_mode = static_cast<BlendMode>(parameters().get_int("blend_mode"));
+    bool exclude = parameters().get_bool("exclude");
+    uint32_t exc_color = parameters().get_color("exclude_color");
+    int distance = parameters().get_int("distance");
+
+    int pixel_count = w * h;
+    uint32_t* p = framebuffer;
+
+    if (blend_mode == BlendMode::ADDITIVE) {
+        // Additive blend mode
+        if (!exclude) {
+            for (int i = 0; i < pixel_count; i++) {
+                uint32_t pix = p[i];
+                p[i] = BLEND(pix, red_tab[color::red(pix)] | green_tab[color::green(pix)] | blue_tab[color::blue(pix)]);
+            }
+        } else {
+            for (int i = 0; i < pixel_count; i++) {
+                uint32_t pix = p[i];
+                if (!inRange(pix, exc_color, distance)) {
+                    p[i] = BLEND(pix, red_tab[color::red(pix)] | green_tab[color::green(pix)] | blue_tab[color::blue(pix)]);
+                }
+            }
+        }
+    } else if (blend_mode == BlendMode::BLEND_5050) {
+        // 50/50 blend mode
+        if (!exclude) {
+            for (int i = 0; i < pixel_count; i++) {
+                uint32_t pix = p[i];
+                p[i] = BLEND_AVG(pix, red_tab[color::red(pix)] | green_tab[color::green(pix)] | blue_tab[color::blue(pix)]);
+            }
+        } else {
+            for (int i = 0; i < pixel_count; i++) {
+                uint32_t pix = p[i];
+                if (!inRange(pix, exc_color, distance)) {
+                    p[i] = BLEND_AVG(pix, red_tab[color::red(pix)] | green_tab[color::green(pix)] | blue_tab[color::blue(pix)]);
+                }
+            }
+        }
+    } else {
+        // Replace mode (default)
+        if (!exclude) {
+            for (int i = 0; i < pixel_count; i++) {
+                uint32_t pix = p[i];
+                p[i] = (pix & 0xFF000000) | red_tab[color::red(pix)] | green_tab[color::green(pix)] | blue_tab[color::blue(pix)];
+            }
+        } else {
+            for (int i = 0; i < pixel_count; i++) {
+                uint32_t pix = p[i];
+                if (!inRange(pix, exc_color, distance)) {
+                    p[i] = (pix & 0xFF000000) | red_tab[color::red(pix)] | green_tab[color::green(pix)] | blue_tab[color::blue(pix)];
+                }
+            }
+        }
+    }
+
+    return 0; // Modified in place
+}
+
+void BrightnessEffect::load_parameters(const std::vector<uint8_t>& data) {
+    if (data.size() < 4) return;
+
+    BinaryReader reader(data);
+
+    // Binary format from r_bright.cpp:
+    // enabled (int32)
+    // blend (int32)
+    // blendavg (int32)
+    // redp (int32) - stored as -4096 to 4096, UI uses 0-8192
+    // greenp (int32)
+    // bluep (int32)
+    // dissoc (int32)
+    // color (int32, BGR format)
+    // exclude (int32)
+    // distance (int32)
+    int enabled = reader.read_u32();
+    parameters().set_bool("enabled", enabled != 0);
+
+    int blend = 0, blendavg = 0;
+    if (reader.remaining() >= 4) blend = reader.read_u32();
+    if (reader.remaining() >= 4) blendavg = reader.read_u32();
+
+    // Map blend modes: blend=additive, blendavg=50/50, neither=replace
+    if (blend) parameters().set_int("blend_mode", 1);  // Additive
+    else if (blendavg) parameters().set_int("blend_mode", 2);  // 50/50
+    else parameters().set_int("blend_mode", 0);  // Replace
+
+    // RGB adjustments - convert from -4096..4096 to 0..8192 for UI
+    if (reader.remaining() >= 4) {
+        int redp = static_cast<int32_t>(reader.read_u32());
+        parameters().set_int("red_adjust", redp + 4096);
+    }
+    if (reader.remaining() >= 4) {
+        int greenp = static_cast<int32_t>(reader.read_u32());
+        parameters().set_int("green_adjust", greenp + 4096);
+    }
+    if (reader.remaining() >= 4) {
+        int bluep = static_cast<int32_t>(reader.read_u32());
+        parameters().set_int("blue_adjust", bluep + 4096);
+    }
+
+    if (reader.remaining() >= 4) {
+        int dissoc = reader.read_u32();
+        parameters().set_bool("dissoc", dissoc != 0);
+    }
+
+    if (reader.remaining() >= 4) {
+        // Colors stored as 0x00RRGGBB (same as internal ARGB), no swap needed
+        uint32_t color = reader.read_u32() | 0xFF000000;
+        parameters().set_color("exclude_color", color);
+    }
+
+    if (reader.remaining() >= 4) {
+        int exclude = reader.read_u32();
+        parameters().set_bool("exclude", exclude != 0);
+    }
+
+    if (reader.remaining() >= 4) {
+        int distance = reader.read_u32();
+        parameters().set_int("distance", distance);
+    }
+}
+
+// Static member definition
+const PluginInfo BrightnessEffect::effect_info {
+    .name = "Brightness",
+    .category = "Trans",
+    .description = "",
+    .author = "",
+    .version = 1,
+    .legacy_index = 22,  // R_Brightness
+    .factory = []() -> std::unique_ptr<avs::EffectBase> {
+        return std::make_unique<BrightnessEffect>();
+    },
+    .ui_layout = {
+        {
+            // Original UI from res.rc IDD_CFG_BRIGHTNESS (dialog 137x137)
+            {
+                .id = "enabled",
+                .text = "Enable Brightness filter",
+                .type = ControlType::CHECKBOX,
+                .x = 0, .y = 0, .w = 87, .h = 10,
+                .default_val = 1
+            },
+            {
+                .id = "red_label",
+                .text = "Red",
+                .type = ControlType::LABEL,
+                .x = 0, .y = 15, .w = 14, .h = 8
+            },
+            {
+                .id = "red_adjust",
+                .text = "",
+                .type = ControlType::SLIDER,
+                .x = 25, .y = 13, .w = 97, .h = 13,
+                .range = {0, 8192, 256},
+                .default_val = 4096
+            },
+            {
+                .id = "red_reset",
+                .text = "><",
+                .type = ControlType::BUTTON,
+                .x = 125, .y = 12, .w = 12, .h = 14
+            },
+            {
+                .id = "green_label",
+                .text = "Green",
+                .type = ControlType::LABEL,
+                .x = 0, .y = 31, .w = 20, .h = 8
+            },
+            {
+                .id = "green_adjust",
+                .text = "",
+                .type = ControlType::SLIDER,
+                .x = 25, .y = 28, .w = 97, .h = 13,
+                .range = {0, 8192, 256},
+                .default_val = 4096
+            },
+            {
+                .id = "green_reset",
+                .text = "><",
+                .type = ControlType::BUTTON,
+                .x = 125, .y = 28, .w = 12, .h = 14
+            },
+            {
+                .id = "blue_label",
+                .text = "Blue",
+                .type = ControlType::LABEL,
+                .x = 0, .y = 47, .w = 15, .h = 8
+            },
+            {
+                .id = "blue_adjust",
+                .text = "",
+                .type = ControlType::SLIDER,
+                .x = 25, .y = 44, .w = 97, .h = 13,
+                .range = {0, 8192, 256},
+                .default_val = 4096
+            },
+            {
+                .id = "blue_reset",
+                .text = "><",
+                .type = ControlType::BUTTON,
+                .x = 125, .y = 44, .w = 12, .h = 14
+            },
+            {
+                .id = "dissoc",
+                .text = "Dissociate RGB values",
+                .type = ControlType::CHECKBOX,
+                .x = 0, .y = 60, .w = 89, .h = 10,
+                .default_val = 0
+            },
+            {
+                .id = "blend_mode",
+                .type = ControlType::RADIO_GROUP,
+                .default_val = 0,  // Replace
+                .radio_options = {
+                    {"Replace", 0, 71, 43, 10},
+                    {"Additive blend", 0, 81, 61, 10},
+                    {"50/50 blend", 0, 92, 55, 10}
+                }
+            },
+            {
+                .id = "exclude",
+                .text = "Exclude color range",
+                .type = ControlType::CHECKBOX,
+                .x = 0, .y = 103, .w = 79, .h = 10,
+                .default_val = 0
+            },
+            {
+                .id = "exclude_color",
+                .text = "Color",
+                .type = ControlType::COLOR_BUTTON,
+                .x = 0, .y = 114, .w = 29, .h = 13,
+                .default_val = 0x000000
+            },
+            {
+                .id = "distance",
+                .text = "",
+                .type = ControlType::SLIDER,
+                .x = 31, .y = 114, .w = 106, .h = 13,
+                .range = {0, 255, 16},
+                .default_val = 16
+            }
+        }
+    }
+};
+
+// Register effect at startup
+static bool register_brightness = []() {
+    PluginManager::instance().register_effect(BrightnessEffect::effect_info);
+    return true;
+}();
+
+} // namespace avs
