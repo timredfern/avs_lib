@@ -48,7 +48,9 @@ void BumpEffect::on_parameter_changed(const std::string& param_name) {
 }
 
 void BumpEffect::load_parameters(const std::vector<uint8_t>& data) {
+#if BUMP_DEBUG
     fprintf(stderr, "BUMP load_parameters called with %zu bytes\n", data.size());
+#endif
     if (data.size() < 4) return;
 
     BinaryReader reader(data);

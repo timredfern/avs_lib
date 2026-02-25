@@ -50,7 +50,7 @@ public:
     std::string get_preset_script(int preset_index) const;
 
 private:
-    void generate_lookup_table(int w, int h, AudioData visdata);
+    void generate_lookup_table(int w, int h);
     void apply_transformation(uint32_t* input, uint32_t* output, int w, int h);
     void compile_script();
 
@@ -67,7 +67,6 @@ private:
     // When subpixel is enabled, high bits store fractional coordinates:
     // bits 0-21: base pixel index, bits 22-26: y frac (0-31), bits 27-31: x frac (0-31)
     std::vector<int> lookup_table_;
-    bool table_valid_;
     bool subpixel_enabled_;  // Track if current table has subpixel data
 
     // Dimension tracking (table must regenerate on resize)

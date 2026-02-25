@@ -62,7 +62,7 @@ static const char* preset_names[] = {
 };
 
 MovementEffect::MovementEffect()
-    : table_valid_(false), subpixel_enabled_(false),
+    : subpixel_enabled_(false),
       last_width_(0), last_height_(0)
 {
     init_blendtable();  // Initialize bilinear blend table
@@ -101,7 +101,7 @@ void MovementEffect::compile_script() {
 }
 
 
-void MovementEffect::generate_lookup_table(int w, int h, AudioData visdata) {
+void MovementEffect::generate_lookup_table(int w, int h) {
     // Resize lookup table for full resolution
     lookup_table_.resize(w * h);
 
@@ -290,10 +290,9 @@ void MovementEffect::generate_lookup_table(int w, int h, AudioData visdata) {
         }
     }
 
-    // Update dimension tracking and mark table valid
+    // Update dimension tracking
     last_width_ = w;
     last_height_ = h;
-    table_valid_ = true;
 }
 
 bool MovementEffect::uses_eval(int preset_index) const {
@@ -505,7 +504,8 @@ void MovementEffect::apply_transformation(uint32_t* input, uint32_t* output, int
         }
 
         for (int i = 0; i < w * h; i++) {
-            int dest_index = lookup_table_[i] & 0x3FFFFF;  // Mask off subpixel bits if present
+            // Only mask off subpixel bits if they were actually packed into the table
+            int dest_index = subpixel_enabled_ ? (lookup_table_[i] & 0x3FFFFF) : lookup_table_[i];
             if (dest_index >= 0 && dest_index < w * h) {
                 output[dest_index] = blend_max(input[i], output[dest_index]);
             }
@@ -576,15 +576,22 @@ void MovementEffect::on_parameter_changed(const std::string& param_name) {
             parameters().set_string("custom_expr", script);
         }
         compile_script();
-        table_valid_ = false;
+        // Regenerate table immediately if we have dimensions
+        if (last_width_ > 0 && last_height_ > 0) {
+            generate_lookup_table(last_width_, last_height_);
+        }
     }
-    // Invalidate lookup table when any table-affecting parameter changes
+    // Regenerate lookup table when any table-affecting parameter changes
     else if (param_name == "custom_expr") {
         compile_script();
-        table_valid_ = false;
+        if (last_width_ > 0 && last_height_ > 0) {
+            generate_lookup_table(last_width_, last_height_);
+        }
     }
     else if (param_name == "rectangular" || param_name == "wrap" || param_name == "subpixel") {
-        table_valid_ = false;
+        if (last_width_ > 0 && last_height_ > 0) {
+            generate_lookup_table(last_width_, last_height_);
+        }
     }
     // Note: source_mapped and blend don't affect the table, only rendering
 }
@@ -592,8 +599,12 @@ void MovementEffect::on_parameter_changed(const std::string& param_name) {
 int MovementEffect::render(AudioData visdata, int isBeat,
                           uint32_t* framebuffer, uint32_t* fbout,
                           int w, int h) {
-    if (!table_valid_ || w != last_width_ || h != last_height_) {
-        generate_lookup_table(w, h, visdata);
+    (void)visdata;
+    (void)isBeat;
+
+    // Only regenerate on dimension change
+    if (w != last_width_ || h != last_height_) {
+        generate_lookup_table(w, h);
     }
 
     // Apply transformation
