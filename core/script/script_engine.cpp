@@ -247,7 +247,7 @@ double ScriptEngine::get_variable(const std::string& name) {
         if (name.length() == 2 && name[0] == 'v' && name[1] >= '1' && name[1] <= '8') {
             int idx = name[1] - '1';
             int sample_idx = idx * 72;
-            if (sample_idx < 576) {
+            if (sample_idx < MIN_AUDIO_SAMPLES) {
                 return static_cast<double>(vis[AUDIO_WAVEFORM][AUDIO_LEFT][sample_idx]) / 127.0;
             }
         }
@@ -255,7 +255,7 @@ double ScriptEngine::get_variable(const std::string& name) {
         if (name.length() == 3 && name[0] == 'v' && name[1] == 'r' && name[2] >= '1' && name[2] <= '8') {
             int idx = name[2] - '1';
             int sample_idx = idx * 72;
-            if (sample_idx < 576) {
+            if (sample_idx < MIN_AUDIO_SAMPLES) {
                 return static_cast<double>(vis[AUDIO_WAVEFORM][AUDIO_RIGHT][sample_idx]) / 127.0;
             }
         }
@@ -263,7 +263,7 @@ double ScriptEngine::get_variable(const std::string& name) {
         if (name.length() == 2 && name[0] == 's' && name[1] >= '1' && name[1] <= '8') {
             int idx = name[1] - '1';
             int sample_idx = idx * 72;
-            if (sample_idx < 576) {
+            if (sample_idx < MIN_AUDIO_SAMPLES) {
                 return static_cast<double>(vis[AUDIO_SPECTRUM][AUDIO_LEFT][sample_idx]) / 127.0;
             }
         }

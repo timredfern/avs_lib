@@ -32,14 +32,14 @@ void generate_test_audio(avs::AudioData& data, double time) {
     // Generate sine wave for testing
     for (int channel = 0; channel < 2; channel++) {
         // Waveform data (time domain)
-        for (int i = 0; i < 576; i++) {
-            double t = time + (double)i / 576.0;
+        for (int i = 0; i < avs::MIN_AUDIO_SAMPLES; i++) {
+            double t = time + (double)i / avs::MIN_AUDIO_SAMPLES;
             double amplitude = 128.0 * sin(2.0 * M_PI * 440.0 * t); // 440Hz sine wave
             data[channel][1][i] = (char)(amplitude + 128); // Convert to unsigned char range
         }
         
         // Spectrum data (simplified - just put some energy in low frequencies)
-        for (int i = 0; i < 576; i++) {
+        for (int i = 0; i < avs::MIN_AUDIO_SAMPLES; i++) {
             if (i < 32) {
                 // Low frequencies - simulate bass
                 data[channel][0][i] = (char)(64 * sin(time * 2.0) + 64);

@@ -103,13 +103,23 @@ int RotoBlitterEffect::render(AudioData visdata, int isBeat,
     int dt_dx = (int)(temp * 65536.0);
 
     // Starting position (center of output maps to center of input)
-    int sstart = -(((w - 1) / 2) * ds_dx + ((h - 1) / 2) * ds_dy)
-                 + (w - 1) * (32768 + (1 << 20));
-    int tstart = -(((w - 1) / 2) * dt_dx + ((h - 1) / 2) * dt_dy)
-                 + (h - 1) * (32768 + (1 << 20));
+    // Use int64_t to avoid overflow at high resolutions (retina 3456x2234)
+    int64_t ds64 = int64_t(w - 1) << 16;
+    int64_t dt64 = int64_t(h - 1) << 16;
 
-    int ds = (w - 1) << 16;
-    int dt = (h - 1) << 16;
+    int64_t sstart64 = -(int64_t((w - 1) / 2) * ds_dx + int64_t((h - 1) / 2) * ds_dy)
+                       + int64_t(w - 1) * (32768 + (1 << 20));
+    int64_t tstart64 = -(int64_t((w - 1) / 2) * dt_dx + int64_t((h - 1) / 2) * dt_dy)
+                       + int64_t(h - 1) * (32768 + (1 << 20));
+
+    // Normalize to [0, ds) and [0, dt) range to fit in int32
+    if (ds64) sstart64 = ((sstart64 % ds64) + ds64) % ds64;
+    if (dt64) tstart64 = ((tstart64 % dt64) + dt64) % dt64;
+
+    int sstart = static_cast<int>(sstart64);
+    int tstart = static_cast<int>(tstart64);
+    int ds = static_cast<int>(ds64);
+    int dt = static_cast<int>(dt64);
 
     // Only render if transform stays in bounds (original check)
     if (ds_dx <= -ds || ds_dx >= ds || dt_dx <= -dt || dt_dx >= dt) {
