@@ -84,13 +84,13 @@ int OscilloscopeEffect::render(AudioData visdata, int isBeat,
 
     // Choose which channel to display
     char* audio_data;
-    static char mixed_data[576];
+    static char mixed_data[MAX_AUDIO_SAMPLES];
 
     if (channel == AudioChannel::RIGHT) {
         audio_data = &visdata[audio_type][AUDIO_RIGHT][0];
     } else if (channel == AudioChannel::CENTER) {
         // Mix both channels
-        for (int i = 0; i < 576; i++) {
+        for (int i = 0; i < MIN_AUDIO_SAMPLES; i++) {
             mixed_data[i] = (visdata[audio_type][AUDIO_LEFT][i] + visdata[audio_type][AUDIO_RIGHT][i]) / 2;
         }
         audio_data = mixed_data;

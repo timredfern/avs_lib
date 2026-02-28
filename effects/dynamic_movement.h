@@ -13,9 +13,6 @@
 
 namespace avs {
 
-// Forward declarations
-typedef char AudioData[2][2][576];
-
 /**
  * Dynamic Movement Effect - Trans/Dynamic Movement from r_dmove.cpp
  *

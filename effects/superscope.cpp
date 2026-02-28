@@ -168,12 +168,12 @@ int SuperScopeEffect::render(AudioData visdata, int isBeat,
     // Prepare audio data
     // source_mode: 0=waveform, 1=spectrum (UI order)
     char* audio_data;
-    static char center_channel[576];
+    static char center_channel[MAX_AUDIO_SAMPLES];
     int audio_type = (parameters().get_int("source_mode") == 1) ? AUDIO_SPECTRUM : AUDIO_WAVEFORM;
     int xorv = (audio_type == AUDIO_WAVEFORM) ? 128 : 0;  // Waveform is signed (needs XOR 128)
 
     if (channel == 1) {  // Center
-        for (int i = 0; i < 576; i++) {
+        for (int i = 0; i < MIN_AUDIO_SAMPLES; i++) {
             center_channel[i] = visdata[audio_type][AUDIO_LEFT][i] / 2 + visdata[audio_type][AUDIO_RIGHT][i] / 2;
         }
         audio_data = center_channel;
@@ -232,10 +232,10 @@ int SuperScopeEffect::render(AudioData visdata, int isBeat,
 
         for (int a = 0; a < n; a++) {
             // Calculate audio value with interpolation
-            double r = (a * 576.0) / n;
+            double r = (a * static_cast<double>(MIN_AUDIO_SAMPLES)) / n;
             double s1 = r - static_cast<int>(r);
             int idx = static_cast<int>(r);
-            if (idx >= 575) idx = 574;
+            if (idx >= MIN_AUDIO_SAMPLES - 1) idx = MIN_AUDIO_SAMPLES - 2;
 
             unsigned char sample1 = static_cast<unsigned char>(audio_data[idx]) ^ xorv;
             unsigned char sample2 = static_cast<unsigned char>(audio_data[idx + 1]) ^ xorv;

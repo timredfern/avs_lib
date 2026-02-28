@@ -19,12 +19,15 @@ namespace avs {
 // Forward declarations
 struct PluginInfo;
 
-// Keep original audio data format for easy porting
+// Audio buffer constants
+constexpr int MIN_AUDIO_SAMPLES = 576;   // CLASSIC AVS - guaranteed minimum valid samples
+constexpr int MAX_AUDIO_SAMPLES = 8192;  // Maximum valid samples (supports 8K displays)
+
 // AudioData[type][channel][sample] where:
 //   type: AUDIO_SPECTRUM (0) or AUDIO_WAVEFORM (1)
 //   channel: 0=left, 1=right
-//   sample: 0-575
-typedef char AudioData[2][2][576];
+//   sample: 0 to (sample_count - 1), minimum MIN_AUDIO_SAMPLES
+typedef char AudioData[2][2][MAX_AUDIO_SAMPLES];
 
 // Audio data indices - use these instead of magic numbers
 // Matches original AVS and grandchild convention

@@ -13,9 +13,6 @@
 
 namespace avs {
 
-// Forward declarations
-typedef char AudioData[2][2][576];
-
 /**
  * Movement Effect - Trans/Movement from r_trans.cpp
  * 

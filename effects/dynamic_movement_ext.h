@@ -13,9 +13,6 @@
 
 namespace avs {
 
-// Forward declarations
-typedef char AudioData[2][2][576];
-
 /**
  * Dynamic Movement Extended - Preset-based non-linear transformations
  *

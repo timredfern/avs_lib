@@ -59,12 +59,12 @@ int RingEffect::render(AudioData visdata, int isBeat,
     int which_ch = parameters().get_int("channel");
     int source = parameters().get_int("source");
     int audio_type = (source == 1) ? AUDIO_SPECTRUM : AUDIO_WAVEFORM;
-    char center_channel[576];
+    char center_channel[MAX_AUDIO_SAMPLES];
     unsigned char* fa_data;
 
     if (which_ch >= 2) {
         // Center channel - average left and right
-        for (int x = 0; x < 576; x++) {
+        for (int x = 0; x < MIN_AUDIO_SAMPLES; x++) {
             center_channel[x] = visdata[audio_type][AUDIO_LEFT][x] / 2 + visdata[audio_type][AUDIO_RIGHT][x] / 2;
         }
         fa_data = (unsigned char*)center_channel;

@@ -31,12 +31,12 @@ int TimescopeEffect::render(AudioData visdata, int isBeat,
     uint32_t color = parameters().get_color("color");
 
     // Build center channel if needed (waveform data)
-    char center_channel[576];
+    char center_channel[MAX_AUDIO_SAMPLES];
     const unsigned char* fa_data;
 
     if (which_ch >= 2) {
         // Center channel - average left and right
-        for (int j = 0; j < 576; j++) {
+        for (int j = 0; j < MIN_AUDIO_SAMPLES; j++) {
             center_channel[j] = visdata[AUDIO_WAVEFORM][AUDIO_LEFT][j] / 2 + visdata[AUDIO_WAVEFORM][AUDIO_RIGHT][j] / 2;
         }
         fa_data = reinterpret_cast<const unsigned char*>(center_channel);
