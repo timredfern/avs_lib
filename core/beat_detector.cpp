@@ -26,7 +26,7 @@ const EffectUILayout BeatDetector::ui_layout_ = {
             .text = "",
             .type = ControlType::RADIO_GROUP,
             .x = 4, .y = 11, .w = 49, .h = 20,
-            .default_val = 1,  // Advanced mode default
+            .default_val = 0,  // Standard mode default
             .radio_options = {
                 {"Standard", 0, 0, 45, 10},
                 {"Advanced", 0, 10, 49, 10}
